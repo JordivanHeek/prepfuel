@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+.dark body {
+  @apply bg-slate-950 text-slate-100;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl bg-white shadow-card border border-slate-100 dark:bg-slate-900 dark:border-slate-800;
+  }
+  .tap {
+    @apply active:scale-[0.98] transition-transform;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold tap;
+  }
+  .btn-primary {
+    @apply btn bg-brand-500 text-white active:bg-brand-600;
+  }
+  .btn-ghost {
+    @apply btn bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base
+           focus:outline-none focus:ring-2 focus:ring-brand-400
+           dark:bg-slate-900 dark:border-slate-700;
+  }
+}
+
+/* Safe-area voor iOS notch + homebar */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
