@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import MacroBadges from '../components/MacroBadges'
 import type { Person, Slot, Category } from '../types'
-import { ingredientsForVariant } from '../lib/plan'
+import { ingredientsForVariant, scaleMacros, scaleIngredients } from '../lib/plan'
 import { todayISO, uid } from '../lib/util'
 
 const SLOT_FOR_CATEGORY: Record<Category, Slot> = {
@@ -15,18 +15,22 @@ const SLOT_FOR_CATEGORY: Record<Category, Slot> = {
   snack: 'snack',
 }
 
-type LooseItem = { recipeId: string; person: Person | null }
+type LooseItem = { recipeId: string; person: Person | null; servings?: number }
 
 export default function RecipeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const recipe = useLiveQuery(() => (id ? db.recipes.get(id) : undefined), [id])
   const [person, setPerson] = useState<Person>('Jordi')
+  const [servings, setServings] = useState(1)
   const [toast, setToast] = useState<string | null>(null)
 
-  // Reset naar Jordi wanneer je naar een ander recept navigeert
+  // Reset variant + porties wanneer je naar een ander recept navigeert
   // (React Router hergebruikt dit component, dus state blijft anders hangen).
-  useEffect(() => setPerson('Jordi'), [id])
+  useEffect(() => {
+    setPerson('Jordi')
+    setServings(1)
+  }, [id])
 
   if (recipe === undefined) return <p className="py-10 text-center text-slate-400">Laden…</p>
   if (recipe === null) return <p className="py-10 text-center text-slate-400">Recept niet gevonden.</p>
@@ -35,8 +39,12 @@ export default function RecipeDetail() {
   const activeVariant = hasVariants
     ? recipe.proteinVariants!.find((v) => v.person === person)
     : undefined
-  const macros = activeVariant?.macros ?? recipe.macros
-  const ingredients = ingredientsForVariant(recipe, hasVariants ? person : null)
+  const baseMacros = activeVariant?.macros ?? recipe.macros
+  const macros = scaleMacros(baseMacros, servings)
+  const ingredients = scaleIngredients(
+    ingredientsForVariant(recipe, hasVariants ? person : null),
+    servings,
+  )
 
   function flash(msg: string) {
     setToast(msg)
@@ -51,6 +59,7 @@ export default function RecipeDetail() {
       slot: SLOT_FOR_CATEGORY[recipe.category],
       recipeId: recipe.id,
       personVariant: hasVariants ? person : null,
+      servings,
       done: false,
     })
     flash('Toegevoegd aan vandaag ✓')
@@ -60,7 +69,7 @@ export default function RecipeDetail() {
     if (!recipe) return
     const row = await db.kv.get('shoppingLoose')
     const list = (row?.value as LooseItem[] | undefined) ?? []
-    list.push({ recipeId: recipe.id, person: hasVariants ? person : null })
+    list.push({ recipeId: recipe.id, person: hasVariants ? person : null, servings })
     await db.kv.put({ key: 'shoppingLoose', value: list })
     flash('Toegevoegd aan boodschappen 🛒')
   }
@@ -109,9 +118,36 @@ export default function RecipeDetail() {
         </div>
       )}
 
+      {/* Porties / personen */}
+      <div className="card flex items-center justify-between p-4">
+        <div>
+          <p className="text-sm font-semibold">Porties / personen</p>
+          <p className="text-xs text-slate-400">Schaalt ingrediënten & boodschappen</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setServings((s) => Math.max(1, s - 1))}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-lg font-bold tap dark:bg-slate-800"
+            aria-label="minder porties"
+          >
+            −
+          </button>
+          <span className="w-6 text-center text-lg font-bold">{servings}</span>
+          <button
+            onClick={() => setServings((s) => s + 1)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-500 text-lg font-bold text-white tap"
+            aria-label="meer porties"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
       {/* Macro's */}
       <div className="card p-4">
-        <p className="mb-2 text-sm font-semibold">Macro's per portie</p>
+        <p className="mb-2 text-sm font-semibold">
+          Macro's {servings > 1 ? `(${servings} porties samen)` : 'per portie'}
+        </p>
         <MacroBadges m={macros} />
         <p className="mt-2 text-[11px] text-slate-400">Richtwaarden — bewerkbaar per recept.</p>
       </div>
@@ -145,6 +181,22 @@ export default function RecipeDetail() {
           ))}
         </ol>
       </div>
+
+      {/* Bron / originele recept */}
+      {recipe.sourceUrl && (
+        <a
+          href={recipe.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="card flex items-center justify-between p-4 tap"
+        >
+          <span>
+            <span className="block text-sm font-semibold">🔗 Bekijk het originele recept</span>
+            <span className="text-xs text-slate-400">Bron: {recipe.sourceName ?? 'online'}</span>
+          </span>
+          <span className="text-slate-300">↗</span>
+        </a>
+      )}
 
       {/* Acties */}
       <div className="grid grid-cols-2 gap-2">

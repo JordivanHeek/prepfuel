@@ -27,12 +27,12 @@ export class PrepFuelDB extends Dexie {
 
 export const db = new PrepFuelDB()
 
-// Vult de database bij de allereerste run met seed-recepten en een profiel.
+// Vult de database bij de eerste run, en houdt de receptenbibliotheek
+// gesynchroniseerd met de seed (nieuwe recepten verschijnen ook voor
+// bestaande installaties). Recept-bewerken bestaat nog niet, dus overschrijven
+// is veilig.
 export async function ensureSeeded() {
-  const recipeCount = await db.recipes.count()
-  if (recipeCount === 0) {
-    await db.recipes.bulkAdd(seedRecipes)
-  }
+  await db.recipes.bulkPut(seedRecipes)
   const profile = await db.profile.get(1)
   if (!profile) {
     await db.profile.add(defaultProfile)

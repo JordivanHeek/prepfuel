@@ -25,3 +25,11 @@ export function ingredientsForVariant(recipe: Recipe, person: Person | null): In
 export function sumMacros(list: Macros[]): Macros {
   return list.reduce((acc, m) => addMacros(acc, m), emptyMacros())
 }
+
+export function scaleMacros(m: Macros, n: number): Macros {
+  return { kcal: m.kcal * n, protein: m.protein * n, carbs: m.carbs * n, fat: m.fat * n }
+}
+
+export function scaleIngredients(list: Ingredient[], n: number): Ingredient[] {
+  return list.map((i) => ({ ...i, qty: i.qty * n }))
+}

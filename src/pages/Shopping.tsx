@@ -6,7 +6,7 @@ import { ingredientsForVariant } from '../lib/plan'
 import { AISLE_ORDER, weekdaysOf, toISODate } from '../lib/util'
 
 type Source = 'weekNow' | 'weekNext' | 'loose'
-type LooseItem = { recipeId: string; person: Person | null }
+type LooseItem = { recipeId: string; person: Person | null; servings?: number }
 type Aggregated = { key: string; name: string; unit: string; qty: number; aisle: Aisle }
 
 function itemKey(i: Ingredient): string {
@@ -43,7 +43,9 @@ export default function Shopping() {
   // Echte picks (met plan entries geladen)
   const effectivePicks: LooseItem[] = useMemo(() => {
     if (source === 'loose') return loose
-    return (planEntriesCache ?? []).map((e) => ({ recipeId: e.recipeId, person: e.personVariant }))
+    return (planEntriesCache ?? []).map((e) => ({
+      recipeId: e.recipeId, person: e.personVariant, servings: e.servings ?? 1,
+    }))
   }, [source, loose, planEntriesCache])
 
   // Aggregatie per ingrediënt (naam + eenheid), gegroepeerd per schap
@@ -52,11 +54,13 @@ export default function Shopping() {
     for (const p of effectivePicks) {
       const r = recipeMap.get(p.recipeId)
       if (!r) continue
+      const mult = p.servings ?? 1
       for (const ing of ingredientsForVariant(r, p.person)) {
         const key = itemKey(ing)
+        const qty = ing.qty * mult
         const cur = map.get(key)
-        if (cur) cur.qty += ing.qty
-        else map.set(key, { key, name: ing.name, unit: ing.unit, qty: ing.qty, aisle: ing.aisle })
+        if (cur) cur.qty += qty
+        else map.set(key, { key, name: ing.name, unit: ing.unit, qty, aisle: ing.aisle })
       }
     }
     const byAisle = new Map<Aisle, Aggregated[]>()

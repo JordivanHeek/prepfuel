@@ -5,6 +5,7 @@ import RecipePicker from '../components/RecipePicker'
 import MacroBadges from '../components/MacroBadges'
 import type { Slot, Person } from '../types'
 import { macrosForEntry, sumMacros } from '../lib/plan'
+import { generateWeekPlan } from '../lib/autoplan'
 import {
   SLOTS, SLOT_LABEL, SLOT_CATEGORIES, weekdaysOf, toISODate, isoWeekday,
   weekdayFull, uid,
@@ -52,9 +53,27 @@ export default function Week() {
     const existing = entriesFor(picker.date, picker.slot)
     await db.planEntries.bulkDelete(existing.map((e) => e.id))
     await db.planEntries.add({
-      id: uid(), date: picker.date, slot: picker.slot, recipeId, personVariant: variant, done: false,
+      id: uid(), date: picker.date, slot: picker.slot, recipeId,
+      personVariant: variant, servings: 1, done: false,
     })
     setPicker(null)
+  }
+
+  async function generatePlan() {
+    if (!recipes || !profile) return
+    const existing = entries ?? []
+    if (existing.length > 0 &&
+        !window.confirm('Er staat al een plan voor deze week. Wil je dit overschrijven met een automatisch plan?')) {
+      return
+    }
+    await db.planEntries.bulkDelete(existing.map((e) => e.id))
+    const generated = generateWeekPlan(days, recipes, officeDays, profile.targets)
+    await db.planEntries.bulkAdd(generated)
+  }
+
+  async function changeServings(id: string, current: number, delta: number) {
+    const next = Math.max(1, (current ?? 1) + delta)
+    await db.planEntries.update(id, { servings: next })
   }
 
   async function clearSlot(date: string, slot: Slot) {
@@ -84,8 +103,12 @@ export default function Week() {
         </div>
       </header>
 
+      <button onClick={generatePlan} className="btn-primary w-full">
+        ✨ Genereer weekplan (past bij je macro's)
+      </button>
       <p className="text-xs text-slate-400">
-        Kantoordagen (koude lunch verplicht) worden gemarkeerd met 🏢. Pas ze aan in Profiel.
+        Vult ma–vr automatisch richting {profile?.targets.kcal ?? 2900} kcal / {profile?.targets.protein ?? 165} g eiwit.
+        Kantoordagen (koude lunch) staan met 🏢. Weekend blijft vrij. Nog eens tikken = nieuwe variatie.
       </p>
 
       <div className="space-y-3">
@@ -124,33 +147,57 @@ export default function Week() {
                         items.map((e) => {
                           const r = recipeMap.get(e.recipeId)
                           const coldViolation = lockCold && r && !r.isColdPortable
+                          const servings = e.servings ?? 1
                           return (
                             <div
                               key={e.id}
-                              className={`flex flex-1 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm ${
+                              className={`flex-1 rounded-lg px-2 py-1.5 text-sm ${
                                 coldViolation
                                   ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
                                   : 'bg-slate-50 dark:bg-slate-800'
                               }`}
                             >
-                              <button
-                                onClick={() => setPicker({ date, slot, office: isOffice })}
-                                className="min-w-0 flex-1 truncate text-left tap"
-                              >
-                                {r?.emoji} {r?.name}
-                                {e.personVariant === 'Frederiek' && ' 🐟'}
-                                {coldViolation && ' ⚠️'}
-                              </button>
-                              {r?.proteinVariants && (
+                              <div className="flex items-center gap-1.5">
                                 <button
-                                  onClick={() => toggleVariant(e.id, e.personVariant)}
-                                  className="chip bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
-                                  title="wissel variant"
+                                  onClick={() => setPicker({ date, slot, office: isOffice })}
+                                  className="min-w-0 flex-1 truncate text-left tap"
                                 >
-                                  {e.personVariant === 'Frederiek' ? 'Frederiek' : 'Jordi'}
+                                  {r?.emoji} {r?.name}
+                                  {e.personVariant === 'Frederiek' && ' 🐟'}
+                                  {coldViolation && ' ⚠️'}
                                 </button>
-                              )}
-                              <button onClick={() => clearSlot(date, slot)} className="text-slate-300 tap">✕</button>
+                                <button onClick={() => clearSlot(date, slot)} className="text-slate-300 tap">✕</button>
+                              </div>
+                              <div className="mt-1 flex items-center gap-2">
+                                {r?.proteinVariants && (
+                                  <button
+                                    onClick={() => toggleVariant(e.id, e.personVariant)}
+                                    className="chip bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
+                                    title="wissel variant"
+                                  >
+                                    {e.personVariant === 'Frederiek' ? 'Frederiek 🐟' : 'Jordi'}
+                                  </button>
+                                )}
+                                <div className="flex items-center gap-1 rounded-full bg-white px-1 dark:bg-slate-900">
+                                  <button
+                                    onClick={() => changeServings(e.id, servings, -1)}
+                                    className="h-5 w-5 rounded-full text-slate-500 tap"
+                                    aria-label="minder porties"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="min-w-[38px] text-center text-[11px] text-slate-500">
+                                    {servings}× portie
+                                  </span>
+                                  <button
+                                    onClick={() => changeServings(e.id, servings, 1)}
+                                    className="h-5 w-5 rounded-full text-slate-500 tap"
+                                    aria-label="meer porties"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           )
                         })

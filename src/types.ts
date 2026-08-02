@@ -50,6 +50,8 @@ export interface Recipe {
   ingredients: Ingredient[]
   steps: string[]
   proteinVariants?: ProteinVariant[] // alleen bij category 'avond'
+  sourceUrl?: string // link naar het originele recept online
+  sourceName?: string // bron (bijv. 'FuelYourBody')
 }
 
 export interface PlanEntry {
@@ -58,6 +60,7 @@ export interface PlanEntry {
   slot: Slot
   recipeId: string
   personVariant: Person | null
+  servings: number // aantal porties/personen (voor boodschappen-schaling)
   done: boolean
 }
 

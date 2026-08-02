@@ -53,7 +53,7 @@ export default function Today() {
 
   async function quickAdd(recipeId: string) {
     await db.planEntries.add({
-      id: uid(), date, slot: 'snack', recipeId, personVariant: null, done: true,
+      id: uid(), date, slot: 'snack', recipeId, personVariant: null, servings: 1, done: true,
     })
     setPicking(false)
   }
