@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import RecipePicker from '../components/RecipePicker'
@@ -35,6 +36,22 @@ export default function Week() {
 
   const recipeMap = useMemo(() => new Map((recipes ?? []).map((r) => [r.id, r])), [recipes])
   const officeDays = profile?.officeDays ?? []
+
+  // Batch-koken overzicht: welke gerechten kook je deze week en hoeveel
+  // porties in totaal (zodat je één keer kookt voor meerdere dagen).
+  const cookPlan = useMemo(() => {
+    const map = new Map<string, { name: string; emoji: string; portions: number }>()
+    for (const e of entries ?? []) {
+      const r = recipeMap.get(e.recipeId)
+      if (!r || !['ontbijt', 'lunch-koud', 'avond'].includes(r.category)) continue
+      const cur = map.get(r.id) ?? { name: r.name, emoji: r.emoji, portions: 0 }
+      cur.portions += e.servings ?? 1
+      map.set(r.id, cur)
+    }
+    return [...map.entries()]
+      .map(([id, v]) => ({ id, ...v }))
+      .sort((a, b) => b.portions - a.portions)
+  }, [entries, recipeMap])
 
   function entriesFor(date: string, slot: Slot) {
     return (entries ?? []).filter((e) => e.date === date && e.slot === slot)
@@ -111,6 +128,28 @@ export default function Week() {
         Kantoordagen (koude lunch) staan met 🏢. Weekend blijft vrij. Nog eens tikken = nieuwe variatie.
       </p>
 
+      {cookPlan.length > 0 && (
+        <section className="card p-4">
+          <h2 className="mb-1 font-semibold">🍳 Deze week koken</h2>
+          <p className="mb-2 text-xs text-slate-400">
+            Kook één keer, eet meerdere dagen. Aantal = totaal aantal porties deze week.
+          </p>
+          <ul className="space-y-1">
+            {cookPlan.map((c) => (
+              <li key={c.id}>
+                <Link to={`/recept/${c.id}`} className="flex items-center gap-2 rounded-lg px-1 py-1 tap">
+                  <span className="text-lg">{c.emoji}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{c.name}</span>
+                  <span className="chip bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                    {c.portions}× portie
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="space-y-3">
         {days.map((d) => {
           const date = toISODate(d)
@@ -132,14 +171,15 @@ export default function Week() {
                   const items = entriesFor(date, slot)
                   const lockCold = slot === 'lunch' && isOffice
                   return (
-                    <div key={slot} className="flex items-center gap-2">
-                      <span className="w-14 shrink-0 text-xs font-medium text-slate-400">
+                    <div key={slot} className="flex items-start gap-2">
+                      <span className="w-14 shrink-0 pt-1.5 text-xs font-medium text-slate-400">
                         {SLOT_LABEL[slot]}
                       </span>
+                      <div className="flex-1 space-y-1.5">
                       {items.length === 0 ? (
                         <button
                           onClick={() => setPicker({ date, slot, office: isOffice })}
-                          className="flex-1 rounded-lg border border-dashed border-slate-200 px-2 py-1.5 text-left text-sm text-slate-400 tap dark:border-slate-700"
+                          className="w-full rounded-lg border border-dashed border-slate-200 px-2 py-1.5 text-left text-sm text-slate-400 tap dark:border-slate-700"
                         >
                           + kies{lockCold ? ' (koud)' : ''}
                         </button>
@@ -151,22 +191,29 @@ export default function Week() {
                           return (
                             <div
                               key={e.id}
-                              className={`flex-1 rounded-lg px-2 py-1.5 text-sm ${
+                              className={`rounded-lg px-2 py-1.5 text-sm ${
                                 coldViolation
                                   ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
                                   : 'bg-slate-50 dark:bg-slate-800'
                               }`}
                             >
                               <div className="flex items-center gap-1.5">
-                                <button
-                                  onClick={() => setPicker({ date, slot, office: isOffice })}
+                                <Link
+                                  to={`/recept/${e.recipeId}`}
                                   className="min-w-0 flex-1 truncate text-left tap"
                                 >
                                   {r?.emoji} {r?.name}
                                   {e.personVariant === 'Frederiek' && ' 🐟'}
                                   {coldViolation && ' ⚠️'}
+                                </Link>
+                                <button
+                                  onClick={() => setPicker({ date, slot, office: isOffice })}
+                                  className="shrink-0 text-slate-400 tap"
+                                  title="ander gerecht kiezen"
+                                >
+                                  🔄
                                 </button>
-                                <button onClick={() => clearSlot(date, slot)} className="text-slate-300 tap">✕</button>
+                                <button onClick={() => clearSlot(date, slot)} className="shrink-0 text-slate-300 tap">✕</button>
                               </div>
                               <div className="mt-1 flex items-center gap-2">
                                 {r?.proteinVariants && (
@@ -202,6 +249,7 @@ export default function Week() {
                           )
                         })
                       )}
+                      </div>
                     </div>
                   )
                 })}

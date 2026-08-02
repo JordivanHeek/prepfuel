@@ -15,46 +15,49 @@ export function generateWeekPlan(
   const breakfasts = byCat('ontbijt')
   const lunches = byCat('lunch-koud')
   const dinners = byCat('avond')
-  // Aanvul-pool: snacks + shakes, maar nooit de mass gainer (te veel kcal in één keer).
-  const snacks = [...byCat('snack'), ...byCat('shake')].filter((r) => r.id !== 'mass-gainer-shake')
+  // Aanvul-pool: snacks + shakes, maar nooit de mass gainer, en geen
+  // bak-batches (tag 'bakken') — die plan je liever bewust met Fre.
+  const snacks = [...byCat('snack'), ...byCat('shake')].filter(
+    (r) => r.id !== 'mass-gainer-shake' && !r.tags.includes('bakken'),
+  )
 
   if (breakfasts.length === 0 || lunches.length === 0 || dinners.length === 0) return []
 
-  // Willekeurige startpunten zodat "opnieuw genereren" variatie geeft.
-  const rnd = (n: number) => Math.floor(Math.random() * n)
-  let bi = rnd(breakfasts.length)
-  let li = rnd(lunches.length)
-  let di = rnd(dinners.length)
+  const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5)
+  const byFridgeDesc = (a: Recipe, b: Recipe) => b.fridgeDays - a.fridgeDays
+
+  // Meal-prep aanpak: kies weinig gerechten en verdeel ze in blokken over
+  // de week (één keer koken, meerdere dagen eten). Gerechten die langer
+  // houdbaar zijn krijgen het grootste blok (de eerste dagen).
+  // Zit er een kantoordag in deze week? Dan alleen koude, meeneembare lunches.
+  const anyOffice = days.some((d) => officeDays.includes(isoWeekday(d)))
+  const lunchPool = anyOffice ? lunches.filter((r) => r.isColdPortable) : lunches
+  const usableLunches = lunchPool.length ? lunchPool : lunches
+
+  const breakfastChoices = shuffle(breakfasts).slice(0, Math.min(2, breakfasts.length)).sort(byFridgeDesc)
+  const lunchChoices = shuffle(usableLunches).slice(0, Math.min(2, usableLunches.length)).sort(byFridgeDesc)
+  const dinnerChoices = shuffle(dinners).slice(0, Math.min(3, dinners.length)).sort(byFridgeDesc)
+  const snackSet = shuffle(snacks).slice(0, Math.min(4, snacks.length))
+
+  const bBlocks = blockIndexForDays(days.length, breakfastChoices.length)
+  const lBlocks = blockIndexForDays(days.length, lunchChoices.length)
+  const dBlocks = blockIndexForDays(days.length, dinnerChoices.length)
 
   const dinnerMacros = (r: Recipe): Macros => r.macros // = Jordi-variant
-
   const entries: PlanEntry[] = []
 
-  for (const day of days) {
+  days.forEach((day, i) => {
     const date = toISODate(day)
-    const isOffice = officeDays.includes(isoWeekday(day))
 
-    const breakfast = breakfasts[bi % breakfasts.length]
-    bi++
-
-    // Lunch: op kantoordagen alleen koud & meeneembaar (lunch-koud is dat).
-    const lunchPool = isOffice ? lunches.filter((r) => r.isColdPortable) : lunches
-    const pool = lunchPool.length ? lunchPool : lunches
-    const lunch = pool[li % pool.length]
-    li++
-
-    const dinner = dinners[di % dinners.length]
-    di++
+    const breakfast = breakfastChoices[bBlocks[i]]
+    const lunch = lunchChoices[lBlocks[i]]
+    const dinner = dinnerChoices[dBlocks[i]]
 
     const add = (slot: Slot, recipe: Recipe, isDinner = false) => {
       entries.push({
-        id: uid(),
-        date,
-        slot,
-        recipeId: recipe.id,
+        id: uid(), date, slot, recipeId: recipe.id,
         personVariant: isDinner && recipe.proteinVariants ? 'Jordi' : null,
-        servings: 1,
-        done: false,
+        servings: 1, done: false,
       })
     }
 
@@ -62,11 +65,7 @@ export function generateWeekPlan(
     add('lunch', lunch)
     add('avond', dinner, true)
 
-    // Lopend dagtotaal
-    let total = addMacros(
-      addMacros(breakfast.macros, lunch.macros),
-      dinnerMacros(dinner),
-    )
+    let total = addMacros(addMacros(breakfast.macros, lunch.macros), dinnerMacros(dinner))
 
     // Vul aan met snacks tot ~dagdoel (max 4 items, hoogstens 1 shake).
     let count = 0
@@ -74,10 +73,9 @@ export function generateWeekPlan(
     while (count < 4) {
       const kcalGap = targets.kcal - total.kcal
       const proteinGap = targets.protein - total.protein
-      if (kcalGap < 220 && proteinGap < 15) break // dichtbij genoeg
+      if (kcalGap < 220 && proteinGap < 15) break
 
-      // Als er al een shake staat: alleen nog echte snacks toestaan.
-      const pool = shakeCount >= 1 ? snacks.filter((s) => s.category !== 'shake') : snacks
+      const pool = shakeCount >= 1 ? snackSet.filter((s) => s.category !== 'shake') : snackSet
       const candidate = pickSnack(pool, kcalGap, proteinGap)
       if (!candidate) break
 
@@ -89,9 +87,23 @@ export function generateWeekPlan(
       if (candidate.category === 'shake') shakeCount++
       count++
     }
-  }
+  })
 
   return entries
+}
+
+// Verdeelt `nDays` dagen over `nParts` gerechten in aaneengesloten blokken,
+// grootste blok eerst. Bijv. 5 dagen / 2 gerechten -> [0,0,0,1,1].
+function blockIndexForDays(nDays: number, nParts: number): number[] {
+  if (nParts <= 1) return Array(nDays).fill(0)
+  const base = Math.floor(nDays / nParts)
+  const rem = nDays % nParts
+  const res: number[] = []
+  for (let p = 0; p < nParts; p++) {
+    const size = base + (p < rem ? 1 : 0)
+    for (let k = 0; k < size; k++) res.push(p)
+  }
+  return res
 }
 
 // Kiest de snack/shake die het beste past bij het resterende gat.

@@ -17,6 +17,11 @@ export const defaultProfile: Profile = {
 const SRC_FUEL_RECEPTEN = 'https://www.fuelyourbody.nl/blog/meal-prep-recepten'
 const SRC_FUEL_ONTBIJT = 'https://www.fuelyourbody.nl/blog/meal-prep-ontbijt.html'
 const SRC_MEXICAN = 'https://www.tiktok.com/@jalalsamfit/video/7257206362831146267'
+// Gezonde high-protein bak-recepten (voor Fre die graag bakt)
+const SRC_LEMON = 'https://tishasveggieeats.com/high-protein-mango-lemon-shortbread-bars/'
+const SRC_BANANABREAD = 'https://ohsnapmacros.com/protein-banana-bread/'
+const SRC_YOGHURTKOEKJES = 'https://mattsfitchef.com/protein-cookies-with-greek-yogurt/'
+const SRC_BAKEDOATS = 'https://eatthegains.com/protein-baked-oatmeal/'
 
 // ── Receptenbibliotheek ─────────────────────────────────────────────
 // Macro's zijn per portie en zijn RICHTWAARDEN (schattingen).
@@ -117,14 +122,14 @@ export const seedRecipes: Recipe[] = [
       { name: 'Kipfilet', qty: 150, unit: 'g', aisle: 'Vlees & Kip' },
       { name: 'Paprika', qty: 1, unit: 'st', aisle: 'Groente & Fruit' },
       { name: 'Feta', qty: 30, unit: 'g', aisle: 'Zuivel & Eieren' },
-      { name: 'Kikkererwten', qty: 80, unit: 'g', aisle: 'Overig' },
+      { name: 'Cherrytomaat', qty: 100, unit: 'g', aisle: 'Groente & Fruit' },
       { name: 'Citroen', qty: 0.5, unit: 'st', aisle: 'Groente & Fruit' },
       { name: 'Olijfolie', qty: 1, unit: 'el', aisle: 'Sauzen & Kruiden' },
     ],
     steps: [
       'Wel de couscous met heet water, roer los met een vork.',
       'Bak en kruid de kip, laat afkoelen.',
-      'Meng couscous met kip, paprika, feta, kikkererwten, citroen en olijfolie.',
+      'Meng couscous met kip, paprika, feta, cherrytomaat, citroen en olijfolie.',
     ],
   },
   {
@@ -923,7 +928,7 @@ export const seedRecipes: Recipe[] = [
     sourceName: 'FuelYourBody',
     ingredients: [
       { name: 'Rijst (droog)', qty: 75, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
-      { name: 'Zwarte bonen', qty: 80, unit: 'g', aisle: 'Overig' },
+      { name: 'Avocado', qty: 0.5, unit: 'st', aisle: 'Groente & Fruit' },
       { name: 'Mais', qty: 60, unit: 'g', aisle: 'Overig' },
       { name: 'Mexicaanse kruiden', qty: 1, unit: 'el', aisle: 'Sauzen & Kruiden' },
       { name: 'Salsa', qty: 40, unit: 'g', aisle: 'Sauzen & Kruiden' },
@@ -945,8 +950,8 @@ export const seedRecipes: Recipe[] = [
     ],
   },
   {
-    id: 'kikkererwten-pasta-kip',
-    name: 'Kikkererwten pasta met kipreepjes',
+    id: 'volkoren-pasta-kip-tomaat',
+    name: 'Volkoren pasta met kipreepjes & tomaat',
     category: 'avond',
     emoji: '🍜',
     servings: 1,
@@ -958,12 +963,12 @@ export const seedRecipes: Recipe[] = [
     sourceUrl: SRC_FUEL_RECEPTEN,
     sourceName: 'FuelYourBody',
     ingredients: [
-      { name: 'Kikkererwtenpasta', qty: 80, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
+      { name: 'Volkoren pasta (droog)', qty: 90, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
       { name: 'Passata', qty: 150, unit: 'g', aisle: 'Sauzen & Kruiden' },
       { name: 'Spinazie', qty: 100, unit: 'g', aisle: 'Groente & Fruit' },
       { name: 'Knoflook', qty: 1, unit: 'teen', aisle: 'Groente & Fruit' },
     ],
-    steps: ['Kook de kikkererwtenpasta.', 'Maak saus met passata, knoflook en het eiwit.', 'Roer spinazie erdoor.'],
+    steps: ['Kook de volkoren pasta.', 'Maak saus met passata, knoflook en het eiwit.', 'Roer spinazie erdoor.'],
     proteinVariants: [
       {
         person: 'Jordi',
@@ -1067,7 +1072,7 @@ export const seedRecipes: Recipe[] = [
     ingredients: [
       { name: 'Quinoa', qty: 80, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
       { name: 'Kipfilet', qty: 150, unit: 'g', aisle: 'Vlees & Kip' },
-      { name: 'Kikkererwten', qty: 80, unit: 'g', aisle: 'Overig' },
+      { name: 'Avocado', qty: 0.5, unit: 'st', aisle: 'Groente & Fruit' },
       { name: 'Feta', qty: 40, unit: 'g', aisle: 'Zuivel & Eieren' },
       { name: 'Komkommer', qty: 0.5, unit: 'st', aisle: 'Groente & Fruit' },
     ],
@@ -1089,7 +1094,7 @@ export const seedRecipes: Recipe[] = [
     ingredients: [
       { name: 'Kipfilet', qty: 190, unit: 'g', aisle: 'Vlees & Kip' },
       { name: 'Basmatirijst (droog)', qty: 52, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
-      { name: 'Zwarte bonen', qty: 25, unit: 'g', aisle: 'Overig' },
+      { name: 'Mais', qty: 40, unit: 'g', aisle: 'Overig' },
       { name: 'Rode paprika', qty: 0.5, unit: 'st', aisle: 'Groente & Fruit' },
       { name: 'Ui', qty: 0.5, unit: 'st', aisle: 'Groente & Fruit' },
       { name: 'Mexicaanse kruiden', qty: 1, unit: 'el', aisle: 'Sauzen & Kruiden' },
@@ -1172,5 +1177,118 @@ export const seedRecipes: Recipe[] = [
       { name: 'Proteïnereep', qty: 1, unit: 'st', aisle: 'Overig' },
     ],
     steps: ['Meenemen en eten wanneer je een snelle eiwitboost nodig hebt.'],
+  },
+
+  // ── Gezonde bak-snacks (Fre bakt graag) — macro's per stuk ───────
+  {
+    id: 'protein-lemon-shortbread',
+    name: 'Protein lemon shortbread',
+    category: 'snack',
+    emoji: '🍋',
+    servings: 9, // hele batch = 9 stuks
+    prepTimeMin: 40,
+    fridgeDays: 5,
+    isColdPortable: true,
+    tags: ['bakken', 'zoet', 'eiwitrijk', 'koud', 'meeneembaar'],
+    macros: { kcal: 136, protein: 14, carbs: 19, fat: 6 }, // per stuk
+    sourceUrl: SRC_LEMON,
+    sourceName: "Tisha's Veggie Eats",
+    ingredients: [
+      { name: 'Volkorenmeel', qty: 135, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
+      { name: 'Roomboter', qty: 42, unit: 'g', aisle: 'Zuivel & Eieren' },
+      { name: 'Suikervrije siroop', qty: 45, unit: 'ml', aisle: 'Sauzen & Kruiden' },
+      { name: 'Citroensap', qty: 110, unit: 'g', aisle: 'Groente & Fruit' },
+      { name: 'Mango', qty: 115, unit: 'g', aisle: 'Groente & Fruit' },
+      { name: 'Eieren', qty: 4, unit: 'st', aisle: 'Zuivel & Eieren' },
+      { name: 'Zoetstof', qty: 96, unit: 'g', aisle: 'Overig' },
+      { name: 'Whey (naturel)', qty: 14, unit: 'g', aisle: 'Overig' },
+    ],
+    steps: [
+      'Bodem: meng meel, boter en siroop, druk in een bakvorm en bak 8–10 min op 175 °C.',
+      'Vulling: blend citroensap, mango, eieren, zoetstof, whey en vanille glad.',
+      'Giet over de bodem en bak 20–25 min. Laat afkoelen en snijd in 9 stukken.',
+    ],
+  },
+  {
+    id: 'protein-bananenbrood',
+    name: 'Protein bananenbrood',
+    category: 'snack',
+    emoji: '🍌',
+    servings: 10, // hele cake = ~10 plakken
+    prepTimeMin: 55,
+    fridgeDays: 4,
+    isColdPortable: true,
+    tags: ['bakken', 'zoet', 'eiwitrijk', 'meeneembaar'],
+    macros: { kcal: 228, protein: 12, carbs: 31, fat: 7 }, // per plak
+    sourceUrl: SRC_BANANABREAD,
+    sourceName: 'Oh Snap Macros',
+    ingredients: [
+      { name: 'Volkorenmeel', qty: 180, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
+      { name: 'Magere Griekse yoghurt', qty: 120, unit: 'g', aisle: 'Zuivel & Eieren' },
+      { name: 'Whey (vanille)', qty: 60, unit: 'g', aisle: 'Overig' },
+      { name: 'Banaan', qty: 3, unit: 'st', aisle: 'Groente & Fruit' },
+      { name: 'Eieren', qty: 2, unit: 'st', aisle: 'Zuivel & Eieren' },
+      { name: 'Bakpoeder', qty: 1, unit: 'tl', aisle: 'Pasta/Rijst/Droogwaren' },
+      { name: 'Honing', qty: 30, unit: 'g', aisle: 'Sauzen & Kruiden' },
+    ],
+    steps: [
+      'Pureer de bananen, mix met yoghurt, eieren en honing.',
+      'Spatel meel, whey en bakpoeder erdoor.',
+      'Bak 45–50 min op 175 °C. Laat afkoelen en snijd in plakken.',
+    ],
+  },
+  {
+    id: 'griekse-yoghurt-koekjes',
+    name: 'Griekse yoghurt proteïne-koekjes',
+    category: 'snack',
+    emoji: '🍪',
+    servings: 10, // ~10 koekjes
+    prepTimeMin: 20,
+    fridgeDays: 5,
+    isColdPortable: true,
+    tags: ['bakken', 'zoet', 'eiwitrijk', 'meeneembaar'],
+    macros: { kcal: 90, protein: 7, carbs: 10, fat: 4 }, // per koekje
+    sourceUrl: SRC_YOGHURTKOEKJES,
+    sourceName: 'Matt’s Fit Chef',
+    ingredients: [
+      { name: 'Havermout', qty: 100, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
+      { name: 'Magere Griekse yoghurt', qty: 150, unit: 'g', aisle: 'Zuivel & Eieren' },
+      { name: 'Whey (vanille)', qty: 30, unit: 'g', aisle: 'Overig' },
+      { name: 'Ei', qty: 1, unit: 'st', aisle: 'Zuivel & Eieren' },
+      { name: 'Pure chocolade', qty: 30, unit: 'g', aisle: 'Overig' },
+    ],
+    steps: [
+      'Meng alles tot een dik beslag, hak de chocolade erdoor.',
+      'Schep hoopjes op een bakplaat.',
+      'Bak 12–15 min op 180 °C. Laat afkoelen.',
+    ],
+  },
+  {
+    id: 'protein-baked-oats-bars',
+    name: 'Protein baked oats bars',
+    category: 'snack',
+    emoji: '🫐',
+    servings: 9, // 9 bars
+    prepTimeMin: 40,
+    fridgeDays: 5,
+    isColdPortable: true,
+    tags: ['bakken', 'meal-prep', 'eiwitrijk', 'koud', 'meeneembaar'],
+    macros: { kcal: 210, protein: 13, carbs: 26, fat: 6 }, // per bar
+    sourceUrl: SRC_BAKEDOATS,
+    sourceName: 'Eat the Gains',
+    ingredients: [
+      { name: 'Havermout', qty: 200, unit: 'g', aisle: 'Pasta/Rijst/Droogwaren' },
+      { name: 'Whey (vanille)', qty: 60, unit: 'g', aisle: 'Overig' },
+      { name: 'Magere Griekse yoghurt', qty: 150, unit: 'g', aisle: 'Zuivel & Eieren' },
+      { name: 'Eieren', qty: 2, unit: 'st', aisle: 'Zuivel & Eieren' },
+      { name: 'Halfvolle melk', qty: 200, unit: 'ml', aisle: 'Zuivel & Eieren' },
+      { name: 'Blauwe bessen', qty: 100, unit: 'g', aisle: 'Groente & Fruit' },
+      { name: 'Bakpoeder', qty: 1, unit: 'tl', aisle: 'Pasta/Rijst/Droogwaren' },
+    ],
+    steps: [
+      'Meng alle natte en droge ingrediënten, spatel de bessen erdoor.',
+      'Giet in een bakvorm en bak 25–30 min op 180 °C.',
+      'Laat afkoelen en snijd in 9 bars.',
+    ],
   },
 ]

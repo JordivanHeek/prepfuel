@@ -33,6 +33,13 @@ export const db = new PrepFuelDB()
 // is veilig.
 export async function ensureSeeded() {
   await db.recipes.bulkPut(seedRecipes)
+  // Ruim recepten op die niet meer in de seed staan (bijv. hernoemde id's),
+  // zodat de bibliotheek schoon blijft. Er is geen eigen-recept-functie,
+  // dus alle recepten komen uit de seed.
+  const seedIds = new Set(seedRecipes.map((r) => r.id))
+  const stale = (await db.recipes.toArray()).filter((r) => !seedIds.has(r.id)).map((r) => r.id)
+  if (stale.length) await db.recipes.bulkDelete(stale)
+
   const profile = await db.profile.get(1)
   if (!profile) {
     await db.profile.add(defaultProfile)

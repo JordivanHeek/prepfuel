@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import MacroRings from '../components/MacroRings'
@@ -139,15 +140,15 @@ export default function Today() {
                         >
                           {e.done ? '✓' : ''}
                         </button>
-                        <div className="min-w-0 flex-1">
+                        <Link to={`/recept/${e.recipeId}`} className="min-w-0 flex-1 tap">
                           <p className={`truncate font-medium ${e.done ? 'line-through text-slate-400' : ''}`}>
                             {r?.emoji} {r?.name ?? 'Onbekend recept'}
                             {e.personVariant === 'Frederiek' && ' 🐟'}
                           </p>
                           <p className="text-xs text-slate-400">
-                            {m.kcal} kcal · {m.protein} g eiwit
+                            {m.kcal} kcal · {m.protein} g eiwit · bekijk recept ›
                           </p>
-                        </div>
+                        </Link>
                         <button onClick={() => removeEntry(e.id)} className="text-slate-300 tap" aria-label="verwijder">
                           ✕
                         </button>
