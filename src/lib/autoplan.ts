@@ -11,7 +11,6 @@ export interface PlanOptions {
 }
 
 const shuffle = <T,>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5)
-const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
 
 // Cook-session model: kies weinig gerechten en verdeel ze in blokken die
 // door één prep-sessie (bijv. zondag of donderdag) worden voorbereid.
@@ -45,38 +44,39 @@ export function generateWeekPlan(days: Date[], recipes: Recipe[], opts: PlanOpti
       .filter((g) => g.dayIdxs.length > 0)
   }
 
-  // Wijs recepten toe aan dag-indexen in aaneengesloten blokken (langst
-  // houdbare recept krijgt het grootste blok).
-  const assignBlocks = (dayIdxs: number[], chosen: Recipe[], out: (Recipe | undefined)[]) => {
-    const sorted = [...chosen].sort((a, b) => b.fridgeDays - a.fridgeDays)
-    const blocks = blockIndexForDays(dayIdxs.length, sorted.length)
-    dayIdxs.forEach((di, k) => { out[di] = sorted[blocks[k]] })
+  // Wissel de gekozen recepten om-en-om af over de dagen (ma A, di B, wo A…),
+  // zodat je niet meerdere dagen op rij hetzelfde eet — terwijl je nog steeds
+  // in één sessie kookt.
+  const interleave = (dayIdxs: number[], chosen: Recipe[], out: (Recipe | undefined)[]) => {
+    if (chosen.length === 0) return
+    dayIdxs.forEach((di, k) => { out[di] = chosen[k % chosen.length] })
   }
 
   const bfAssign: (Recipe | undefined)[] = []
   const lunchAssign: (Recipe | undefined)[] = []
   const dinnerAssign: (Recipe | undefined)[] = []
 
-  // ── Ontbijt: 1 recept per sessie ─────────────────────────────────
+  // ── Ontbijt: tot 2 recepten per sessie, afgewisseld ──────────────
   {
     const pool = shuffle(breakfasts)
     let ptr = 0
     for (const g of groupBySession('ontbijt')) {
-      const chosen = [pool[ptr % pool.length]]
-      ptr++
-      assignBlocks(g.dayIdxs, chosen, bfAssign)
+      const n = Math.min(2, g.dayIdxs.length, pool.length)
+      const chosen: Recipe[] = []
+      for (let k = 0; k < n; k++) { chosen.push(pool[ptr % pool.length]); ptr++ }
+      interleave(g.dayIdxs, chosen, bfAssign)
     }
   }
 
-  // ── Lunch: 1–2 recepten per sessie ───────────────────────────────
+  // ── Lunch: tot 2 recepten per sessie, afgewisseld ────────────────
   {
     const pool = shuffle(lunches)
     let ptr = 0
     for (const g of groupBySession('lunch')) {
-      const n = clamp(Math.round(g.dayIdxs.length / 3), 1, 2)
+      const n = Math.min(2, g.dayIdxs.length, pool.length)
       const chosen: Recipe[] = []
-      for (let k = 0; k < Math.min(n, pool.length); k++) { chosen.push(pool[ptr % pool.length]); ptr++ }
-      assignBlocks(g.dayIdxs, chosen, lunchAssign)
+      for (let k = 0; k < n; k++) { chosen.push(pool[ptr % pool.length]); ptr++ }
+      interleave(g.dayIdxs, chosen, lunchAssign)
     }
   }
 
@@ -104,7 +104,7 @@ export function generateWeekPlan(days: Date[], recipes: Recipe[], opts: PlanOpti
       const slice = chosenDinners.slice(offset, offset + counts[gi])
       offset += counts[gi]
       const use = slice.length ? slice : [chosenDinners[gi % chosenDinners.length]]
-      assignBlocks(g.dayIdxs, use, dinnerAssign)
+      interleave(g.dayIdxs, use, dinnerAssign)
     })
   }
 
@@ -182,19 +182,6 @@ function distributeCounts(total: number, weights: number[]): number[] {
     rem--
   }
   return base
-}
-
-// Verdeelt `nDays` dagen over `nParts` gerechten in aaneengesloten blokken.
-function blockIndexForDays(nDays: number, nParts: number): number[] {
-  if (nParts <= 1) return Array(nDays).fill(0)
-  const base = Math.floor(nDays / nParts)
-  const rem = nDays % nParts
-  const res: number[] = []
-  for (let p = 0; p < nParts; p++) {
-    const size = base + (p < rem ? 1 : 0)
-    for (let k = 0; k < size; k++) res.push(p)
-  }
-  return res
 }
 
 function pickSnack(snacks: Recipe[], kcalGap: number, proteinGap: number): Recipe | undefined {

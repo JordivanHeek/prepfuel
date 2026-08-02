@@ -230,6 +230,8 @@ export default function Week() {
                           const r = recipeMap.get(e.recipeId)
                           const coldViolation = lockCold && r && !r.isColdPortable
                           const servings = e.servings ?? 1
+                          const partnerServings = e.partnerServings ?? 0
+                          const totalPortions = servings + partnerServings
                           return (
                             <div
                               key={e.id}
@@ -280,8 +282,8 @@ export default function Week() {
                                   >
                                     −
                                   </button>
-                                  <span className="min-w-[38px] text-center text-[11px] text-slate-500">
-                                    {servings}× portie
+                                  <span className="min-w-[64px] text-center text-[11px] text-slate-500">
+                                    {totalPortions}× portie{partnerServings > 0 ? ' (jij+Fre)' : ''}
                                   </span>
                                   <button
                                     onClick={() => changeServings(e.id, servings, 1)}
