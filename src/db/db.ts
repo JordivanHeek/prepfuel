@@ -43,5 +43,12 @@ export async function ensureSeeded() {
   const profile = await db.profile.get(1)
   if (!profile) {
     await db.profile.add(defaultProfile)
+  } else {
+    // Vul nieuwe velden aan voor bestaande installaties.
+    const patch: Partial<typeof defaultProfile> = {}
+    if (profile.cookDays === undefined) patch.cookDays = defaultProfile.cookDays
+    if (profile.sharedSlots === undefined) patch.sharedSlots = defaultProfile.sharedSlots
+    if (profile.partnerName === undefined) patch.partnerName = defaultProfile.partnerName
+    if (Object.keys(patch).length) await db.profile.update(1, patch)
   }
 }

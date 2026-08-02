@@ -7,6 +7,7 @@ import MacroBadges from '../components/MacroBadges'
 import type { Slot, Person } from '../types'
 import { macrosForEntry, sumMacros } from '../lib/plan'
 import { generateWeekPlan } from '../lib/autoplan'
+import { sessionForDateStr, cookSessionLabel, orderedCookDays } from '../lib/cooksessions'
 import {
   SLOTS, SLOT_LABEL, SLOT_CATEGORIES, weekdaysOf, toISODate, isoWeekday,
   weekdayFull, uid,
@@ -37,21 +38,36 @@ export default function Week() {
   const recipeMap = useMemo(() => new Map((recipes ?? []).map((r) => [r.id, r])), [recipes])
   const officeDays = profile?.officeDays ?? []
 
-  // Batch-koken overzicht: welke gerechten kook je deze week en hoeveel
-  // porties in totaal (zodat je één keer kookt voor meerdere dagen).
-  const cookPlan = useMemo(() => {
-    const map = new Map<string, { name: string; emoji: string; portions: number }>()
+  const cookDays = profile?.cookDays ?? [7, 4]
+  const partnerName = profile?.partnerName ?? 'Frederiek'
+
+  // Kookschema: groepeer per prep-sessie (bijv. zondag / donderdag) welke
+  // gerechten je klaarmaakt en hoeveel porties totaal (jouw + partner-porties).
+  // Snacks zitten er niet in — die pak je gewoon uit voorraad.
+  const cookSchedule = useMemo(() => {
+    type Item = { id: string; name: string; emoji: string; portions: number; shared: boolean; fishForPartner: boolean }
+    const sessions = new Map<number, Map<string, Item>>()
     for (const e of entries ?? []) {
       const r = recipeMap.get(e.recipeId)
       if (!r || !['ontbijt', 'lunch-koud', 'avond'].includes(r.category)) continue
-      const cur = map.get(r.id) ?? { name: r.name, emoji: r.emoji, portions: 0 }
-      cur.portions += e.servings ?? 1
-      map.set(r.id, cur)
+      const cookDay = sessionForDateStr(e.date, e.slot, cookDays)
+      if (!sessions.has(cookDay)) sessions.set(cookDay, new Map())
+      const bucket = sessions.get(cookDay)!
+      const cur = bucket.get(r.id) ?? {
+        id: r.id, name: r.name, emoji: r.emoji, portions: 0, shared: false, fishForPartner: false,
+      }
+      cur.portions += (e.servings ?? 1) + (e.partnerServings ?? 0)
+      if ((e.partnerServings ?? 0) > 0) cur.shared = true
+      if (e.partnerVariant === 'Frederiek') cur.fishForPartner = true
+      bucket.set(r.id, cur)
     }
-    return [...map.entries()]
-      .map(([id, v]) => ({ id, ...v }))
-      .sort((a, b) => b.portions - a.portions)
-  }, [entries, recipeMap])
+    return orderedCookDays(cookDays)
+      .filter((c) => sessions.has(c))
+      .map((cookDay) => ({
+        cookDay,
+        items: [...sessions.get(cookDay)!.values()].sort((a, b) => b.portions - a.portions),
+      }))
+  }, [entries, recipeMap, cookDays])
 
   function entriesFor(date: string, slot: Slot) {
     return (entries ?? []).filter((e) => e.date === date && e.slot === slot)
@@ -66,12 +82,14 @@ export default function Week() {
     if (!picker) return
     const r = recipeMap.get(recipeId)
     const variant: Person | null = r?.proteinVariants ? 'Jordi' : null
-    // vervang bestaande keuze in dit slot
+    // Gedeeld slot? Dan standaard ook een portie voor de partner.
+    const shared = (profile?.sharedSlots ?? []).includes(picker.slot)
     const existing = entriesFor(picker.date, picker.slot)
     await db.planEntries.bulkDelete(existing.map((e) => e.id))
     await db.planEntries.add({
       id: uid(), date: picker.date, slot: picker.slot, recipeId,
-      personVariant: variant, servings: 1, done: false,
+      personVariant: variant, servings: 1,
+      partnerServings: shared ? 1 : 0, partnerVariant: null, done: false,
     })
     setPicker(null)
   }
@@ -84,7 +102,13 @@ export default function Week() {
       return
     }
     await db.planEntries.bulkDelete(existing.map((e) => e.id))
-    const generated = generateWeekPlan(days, recipes, officeDays, profile.targets)
+    const generated = generateWeekPlan(days, recipes, {
+      targets: profile.targets,
+      cookDays: profile.cookDays ?? [7, 4],
+      sharedSlots: profile.sharedSlots ?? ['ontbijt', 'avond'],
+      officeDays,
+      dinnerVariety: 3,
+    })
     await db.planEntries.bulkAdd(generated)
   }
 
@@ -98,9 +122,11 @@ export default function Week() {
     await db.planEntries.bulkDelete(existing.map((e) => e.id))
   }
 
-  async function toggleVariant(id: string, current: Person | null) {
+  // Wisselt wat de partner eet bij een gedeeld avondgerecht: zijn vis-variant
+  // ('Frederiek') of hetzelfde als Jordi ('Jordi').
+  async function togglePartnerVariant(id: string, current: Person | null) {
     const next: Person = current === 'Frederiek' ? 'Jordi' : 'Frederiek'
-    await db.planEntries.update(id, { personVariant: next })
+    await db.planEntries.update(id, { partnerVariant: next })
   }
 
   function pickerRecipes(slot: Slot, office: boolean) {
@@ -124,29 +150,45 @@ export default function Week() {
         ✨ Genereer weekplan (past bij je macro's)
       </button>
       <p className="text-xs text-slate-400">
-        Vult ma–vr automatisch richting {profile?.targets.kcal ?? 2900} kcal / {profile?.targets.protein ?? 165} g eiwit.
-        Kantoordagen (koude lunch) staan met 🏢. Weekend blijft vrij. Nog eens tikken = nieuwe variatie.
+        Vult ma–vr richting {profile?.targets.kcal ?? 2900} kcal / {profile?.targets.protein ?? 165} g eiwit,
+        gebundeld in prep-sessies (kook 1×, eet meerdere dagen). 👥 = samen met {partnerName}. Nog eens tikken = nieuwe variatie.
       </p>
 
-      {cookPlan.length > 0 && (
+      {cookSchedule.length > 0 && (
         <section className="card p-4">
-          <h2 className="mb-1 font-semibold">🍳 Deze week koken</h2>
-          <p className="mb-2 text-xs text-slate-400">
-            Kook één keer, eet meerdere dagen. Aantal = totaal aantal porties deze week.
-          </p>
-          <ul className="space-y-1">
-            {cookPlan.map((c) => (
-              <li key={c.id}>
-                <Link to={`/recept/${c.id}`} className="flex items-center gap-2 rounded-lg px-1 py-1 tap">
-                  <span className="text-lg">{c.emoji}</span>
-                  <span className="min-w-0 flex-1 truncate text-sm">{c.name}</span>
-                  <span className="chip bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-                    {c.portions}× portie
-                  </span>
-                </Link>
-              </li>
+          <h2 className="mb-2 font-semibold">🧑‍🍳 Kookschema</h2>
+          <div className="space-y-3">
+            {cookSchedule.map((s) => (
+              <div key={s.cookDay}>
+                <h3 className="mb-1 text-sm font-semibold text-brand-600 dark:text-brand-400">
+                  {cookSessionLabel(s.cookDay)}
+                </h3>
+                <ul className="space-y-1">
+                  {s.items.map((c) => (
+                    <li key={c.id}>
+                      <Link to={`/recept/${c.id}`} className="flex items-center gap-2 rounded-lg px-1 py-1 tap">
+                        <span className="text-lg">{c.emoji}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm">
+                          {c.name}
+                          {c.shared && (
+                            <span className="ml-1 text-xs text-slate-400">
+                              👥{c.fishForPartner ? ` (${partnerName}: 🐟)` : ''}
+                            </span>
+                          )}
+                        </span>
+                        <span className="chip shrink-0 bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                          {c.portions}× portie
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
+          <p className="mt-2 text-[11px] text-slate-400">
+            Doe je boodschappen in het weekend — de lijst telt jouw + {partnerName}'s porties samen op.
+          </p>
         </section>
       )}
 
@@ -203,7 +245,6 @@ export default function Week() {
                                   className="min-w-0 flex-1 truncate text-left tap"
                                 >
                                   {r?.emoji} {r?.name}
-                                  {e.personVariant === 'Frederiek' && ' 🐟'}
                                   {coldViolation && ' ⚠️'}
                                 </Link>
                                 <button
@@ -215,15 +256,21 @@ export default function Week() {
                                 </button>
                                 <button onClick={() => clearSlot(date, slot)} className="shrink-0 text-slate-300 tap">✕</button>
                               </div>
-                              <div className="mt-1 flex items-center gap-2">
-                                {r?.proteinVariants && (
-                                  <button
-                                    onClick={() => toggleVariant(e.id, e.personVariant)}
-                                    className="chip bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
-                                    title="wissel variant"
-                                  >
-                                    {e.personVariant === 'Frederiek' ? 'Frederiek 🐟' : 'Jordi'}
-                                  </button>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                {(e.partnerServings ?? 0) > 0 && (
+                                  r?.proteinVariants ? (
+                                    <button
+                                      onClick={() => togglePartnerVariant(e.id, e.partnerVariant)}
+                                      className="chip bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
+                                      title={`wat eet ${partnerName}?`}
+                                    >
+                                      👥 {partnerName}: {e.partnerVariant === 'Frederiek' ? '🐟 vis' : 'zelfde'}
+                                    </button>
+                                  ) : (
+                                    <span className="chip bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                                      👥 {partnerName}
+                                    </span>
+                                  )
                                 )}
                                 <div className="flex items-center gap-1 rounded-full bg-white px-1 dark:bg-slate-900">
                                   <button

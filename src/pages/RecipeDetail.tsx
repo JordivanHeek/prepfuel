@@ -60,6 +60,8 @@ export default function RecipeDetail() {
       recipeId: recipe.id,
       personVariant: hasVariants ? person : null,
       servings,
+      partnerServings: 0,
+      partnerVariant: null,
       done: false,
     })
     flash('Toegevoegd aan vandaag ✓')

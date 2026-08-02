@@ -21,6 +21,13 @@ export default function Profile() {
     update({ officeDays: [...set].sort((a, b) => a - b) })
   }
 
+  function toggleCookDay(wd: number) {
+    const set = new Set(profile!.cookDays ?? [])
+    if (set.has(wd)) set.delete(wd)
+    else set.add(wd)
+    update({ cookDays: [...set].sort((a, b) => a - b) })
+  }
+
   const macroFields: { key: keyof Macros; label: string; unit: string }[] = [
     { key: 'kcal', label: 'Calorieën', unit: 'kcal' },
     { key: 'protein', label: 'Eiwit', unit: 'g' },
@@ -102,6 +109,33 @@ export default function Profile() {
             )
           })}
         </div>
+      </section>
+
+      {/* Kook-/prep-dagen */}
+      <section className="card space-y-3 p-4">
+        <h2 className="font-semibold">Kook-/prep-dagen</h2>
+        <p className="text-xs text-slate-400">
+          Op deze dagen bereid je in één keer voor. Het weekplan groepeert de gerechten per sessie.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {WEEKDAYS.map((wd) => {
+            const active = (profile.cookDays ?? []).includes(wd)
+            return (
+              <button
+                key={wd}
+                onClick={() => toggleCookDay(wd)}
+                className={`chip px-3 py-1.5 capitalize tap ${
+                  active ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                }`}
+              >
+                {weekdayFull(wd).slice(0, 2)}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-slate-400">
+          Samen met {profile.partnerName || 'je partner'}: ontbijt & avondeten (2 porties). Lunch & snacks zijn voor jou alleen.
+        </p>
       </section>
 
       {/* Supermarkt */}

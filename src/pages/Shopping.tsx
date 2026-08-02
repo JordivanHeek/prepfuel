@@ -40,12 +40,19 @@ export default function Shopping() {
     [source, weekDays[0], weekDays[4]],
   )
 
-  // Echte picks (met plan entries geladen)
+  // Echte picks (met plan entries geladen). Gedeelde maaltijden tellen ook
+  // de porties van de partner mee (evt. met zijn eigen vis-variant).
   const effectivePicks: LooseItem[] = useMemo(() => {
     if (source === 'loose') return loose
-    return (planEntriesCache ?? []).map((e) => ({
-      recipeId: e.recipeId, person: e.personVariant, servings: e.servings ?? 1,
-    }))
+    return (planEntriesCache ?? []).flatMap((e) => {
+      const picks: LooseItem[] = [
+        { recipeId: e.recipeId, person: e.personVariant, servings: e.servings ?? 1 },
+      ]
+      if ((e.partnerServings ?? 0) > 0) {
+        picks.push({ recipeId: e.recipeId, person: e.partnerVariant ?? null, servings: e.partnerServings })
+      }
+      return picks
+    })
   }, [source, loose, planEntriesCache])
 
   // Aggregatie per ingrediënt (naam + eenheid), gegroepeerd per schap

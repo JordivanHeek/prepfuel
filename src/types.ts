@@ -60,7 +60,11 @@ export interface PlanEntry {
   slot: Slot
   recipeId: string
   personVariant: Person | null
-  servings: number // aantal porties/personen (voor boodschappen-schaling)
+  servings: number // porties voor Jordi (meestal 1)
+  // Gedeeld met Frederiek: hoeveel extra porties, en welke variant hij eet
+  // ('Frederiek' = vis-swap, 'Jordi' = hetzelfde als Jordi, null = geen variant).
+  partnerServings: number // 0 = niet gedeeld
+  partnerVariant: Person | null
   done: boolean
 }
 
@@ -70,6 +74,9 @@ export interface Profile {
   goalWeight: number
   targets: Macros
   officeDays: number[] // weekdagnummers 1=ma ... 7=zo (ISO)
+  cookDays: number[] // prep-/kookdagen (ISO weekdag), bijv. [7, 4] = zo + do
+  sharedSlots: Slot[] // maaltijden die je samen met de partner eet (2 porties)
+  partnerName: string // naam van de partner (bijv. 'Frederiek')
   creatineEnabled: boolean
   creatineDoneDates: string[]
   darkMode: boolean

@@ -7,6 +7,9 @@ export const defaultProfile: Profile = {
   goalWeight: 88,
   targets: { kcal: 2900, protein: 165, carbs: 380, fat: 80 },
   officeDays: [2, 4], // dinsdag & donderdag (ISO: 1=ma ... 7=zo)
+  cookDays: [7, 4], // zondag + donderdag(avond) prep-sessies
+  sharedSlots: ['ontbijt', 'avond'], // samen met Frederiek
+  partnerName: 'Frederiek',
   creatineEnabled: true,
   creatineDoneDates: [],
   darkMode: false,

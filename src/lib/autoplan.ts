@@ -1,87 +1,162 @@
-import type { Recipe, PlanEntry, Macros, Slot } from '../types'
+import type { Recipe, PlanEntry, Macros, Slot, Person } from '../types'
 import { emptyMacros, addMacros, toISODate, isoWeekday, uid } from './util'
+import { sessionForMeal, orderedCookDays } from './cooksessions'
 
-// Genereert automatisch een weekplan (ma–vr) dat de dagdoelen zo goed
-// mogelijk benadert: ontbijt + lunch + avond + aanvullende snacks/shakes.
-// Respecteert kantoordagen (koude lunch) en kiest voor avond altijd
-// Jordi's niet-vis variant. Weekend blijft flexibel (leeg).
-export function generateWeekPlan(
-  days: Date[],
-  recipes: Recipe[],
-  officeDays: number[],
-  targets: Macros,
-): PlanEntry[] {
+export interface PlanOptions {
+  targets: Macros
+  cookDays: number[]
+  sharedSlots: Slot[]
+  officeDays: number[]
+  dinnerVariety?: number // aantal verschillende avondgerechten (default 3)
+}
+
+const shuffle = <T,>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5)
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
+
+// Cook-session model: kies weinig gerechten en verdeel ze in blokken die
+// door één prep-sessie (bijv. zondag of donderdag) worden voorbereid.
+// Ontbijt/avond kunnen gedeeld zijn met de partner (2 porties); lunch/snack
+// zijn voor Jordi alleen. Bij gedeeld avondeten wisselt per gerecht of de
+// partner de vis-variant of hetzelfde eet.
+export function generateWeekPlan(days: Date[], recipes: Recipe[], opts: PlanOptions): PlanEntry[] {
+  const { targets, cookDays, sharedSlots } = opts
   const byCat = (c: Recipe['category']) => recipes.filter((r) => r.category === c)
   const breakfasts = byCat('ontbijt')
   const lunches = byCat('lunch-koud')
   const dinners = byCat('avond')
-  // Aanvul-pool: snacks + shakes, maar nooit de mass gainer, en geen
-  // bak-batches (tag 'bakken') — die plan je liever bewust met Fre.
   const snacks = [...byCat('snack'), ...byCat('shake')].filter(
     (r) => r.id !== 'mass-gainer-shake' && !r.tags.includes('bakken'),
   )
-
   if (breakfasts.length === 0 || lunches.length === 0 || dinners.length === 0) return []
 
-  const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5)
-  const byFridgeDesc = (a: Recipe, b: Recipe) => b.fridgeDays - a.fridgeDays
+  const sharedBreakfast = sharedSlots.includes('ontbijt')
+  const sharedDinner = sharedSlots.includes('avond')
 
-  // Meal-prep aanpak: kies weinig gerechten en verdeel ze in blokken over
-  // de week (één keer koken, meerdere dagen eten). Gerechten die langer
-  // houdbaar zijn krijgen het grootste blok (de eerste dagen).
-  // Zit er een kantoordag in deze week? Dan alleen koude, meeneembare lunches.
-  const anyOffice = days.some((d) => officeDays.includes(isoWeekday(d)))
-  const lunchPool = anyOffice ? lunches.filter((r) => r.isColdPortable) : lunches
-  const usableLunches = lunchPool.length ? lunchPool : lunches
+  const weekdays = days.map((d, i) => ({ i, date: toISODate(d), wd: isoWeekday(d) }))
 
-  const breakfastChoices = shuffle(breakfasts).slice(0, Math.min(2, breakfasts.length)).sort(byFridgeDesc)
-  const lunchChoices = shuffle(usableLunches).slice(0, Math.min(2, usableLunches.length)).sort(byFridgeDesc)
-  const dinnerChoices = shuffle(dinners).slice(0, Math.min(3, dinners.length)).sort(byFridgeDesc)
+  // Groepeer dag-indexen per prep-sessie voor een bepaald slot.
+  const groupBySession = (slot: Slot) => {
+    const order = orderedCookDays(cookDays)
+    return order
+      .map((cookDay) => ({
+        cookDay,
+        dayIdxs: weekdays.filter((w) => sessionForMeal(w.wd, slot, cookDays) === cookDay).map((w) => w.i),
+      }))
+      .filter((g) => g.dayIdxs.length > 0)
+  }
+
+  // Wijs recepten toe aan dag-indexen in aaneengesloten blokken (langst
+  // houdbare recept krijgt het grootste blok).
+  const assignBlocks = (dayIdxs: number[], chosen: Recipe[], out: (Recipe | undefined)[]) => {
+    const sorted = [...chosen].sort((a, b) => b.fridgeDays - a.fridgeDays)
+    const blocks = blockIndexForDays(dayIdxs.length, sorted.length)
+    dayIdxs.forEach((di, k) => { out[di] = sorted[blocks[k]] })
+  }
+
+  const bfAssign: (Recipe | undefined)[] = []
+  const lunchAssign: (Recipe | undefined)[] = []
+  const dinnerAssign: (Recipe | undefined)[] = []
+
+  // ── Ontbijt: 1 recept per sessie ─────────────────────────────────
+  {
+    const pool = shuffle(breakfasts)
+    let ptr = 0
+    for (const g of groupBySession('ontbijt')) {
+      const chosen = [pool[ptr % pool.length]]
+      ptr++
+      assignBlocks(g.dayIdxs, chosen, bfAssign)
+    }
+  }
+
+  // ── Lunch: 1–2 recepten per sessie ───────────────────────────────
+  {
+    const pool = shuffle(lunches)
+    let ptr = 0
+    for (const g of groupBySession('lunch')) {
+      const n = clamp(Math.round(g.dayIdxs.length / 3), 1, 2)
+      const chosen: Recipe[] = []
+      for (let k = 0; k < Math.min(n, pool.length); k++) { chosen.push(pool[ptr % pool.length]); ptr++ }
+      assignBlocks(g.dayIdxs, chosen, lunchAssign)
+    }
+  }
+
+  // ── Avond: in totaal `dinnerVariety` verschillende gerechten ─────
+  const dinnerPartnerVar = new Map<string, Person | null>()
+  {
+    const nDinners = Math.min(opts.dinnerVariety ?? 3, dinners.length)
+    const chosenDinners = shuffle(dinners).slice(0, nDinners)
+
+    // Partner-variant per gerecht: wisselt vis / hetzelfde.
+    let visToggle = true
+    for (const dn of chosenDinners) {
+      if (sharedDinner && dn.proteinVariants) {
+        dinnerPartnerVar.set(dn.id, visToggle ? 'Frederiek' : 'Jordi')
+        visToggle = !visToggle
+      } else {
+        dinnerPartnerVar.set(dn.id, null)
+      }
+    }
+
+    const groups = groupBySession('avond')
+    const counts = distributeCounts(nDinners, groups.map((g) => g.dayIdxs.length))
+    let offset = 0
+    groups.forEach((g, gi) => {
+      const slice = chosenDinners.slice(offset, offset + counts[gi])
+      offset += counts[gi]
+      const use = slice.length ? slice : [chosenDinners[gi % chosenDinners.length]]
+      assignBlocks(g.dayIdxs, use, dinnerAssign)
+    })
+  }
+
+  // ── Bouw entries per dag + vul aan met snacks (solo) ─────────────
   const snackSet = shuffle(snacks).slice(0, Math.min(4, snacks.length))
-
-  const bBlocks = blockIndexForDays(days.length, breakfastChoices.length)
-  const lBlocks = blockIndexForDays(days.length, lunchChoices.length)
-  const dBlocks = blockIndexForDays(days.length, dinnerChoices.length)
-
-  const dinnerMacros = (r: Recipe): Macros => r.macros // = Jordi-variant
   const entries: PlanEntry[] = []
 
-  days.forEach((day, i) => {
-    const date = toISODate(day)
+  weekdays.forEach(({ i, date }) => {
+    const breakfast = bfAssign[i]
+    const lunch = lunchAssign[i]
+    const dinner = dinnerAssign[i]
 
-    const breakfast = breakfastChoices[bBlocks[i]]
-    const lunch = lunchChoices[lBlocks[i]]
-    const dinner = dinnerChoices[dBlocks[i]]
-
-    const add = (slot: Slot, recipe: Recipe, isDinner = false) => {
+    if (breakfast) {
       entries.push({
-        id: uid(), date, slot, recipeId: recipe.id,
-        personVariant: isDinner && recipe.proteinVariants ? 'Jordi' : null,
-        servings: 1, done: false,
+        id: uid(), date, slot: 'ontbijt', recipeId: breakfast.id,
+        personVariant: null, servings: 1,
+        partnerServings: sharedBreakfast ? 1 : 0, partnerVariant: null, done: false,
+      })
+    }
+    if (lunch) {
+      entries.push({
+        id: uid(), date, slot: 'lunch', recipeId: lunch.id,
+        personVariant: null, servings: 1, partnerServings: 0, partnerVariant: null, done: false,
+      })
+    }
+    if (dinner) {
+      entries.push({
+        id: uid(), date, slot: 'avond', recipeId: dinner.id,
+        personVariant: dinner.proteinVariants ? 'Jordi' : null, servings: 1,
+        partnerServings: sharedDinner ? 1 : 0,
+        partnerVariant: dinnerPartnerVar.get(dinner.id) ?? null, done: false,
       })
     }
 
-    add('ontbijt', breakfast)
-    add('lunch', lunch)
-    add('avond', dinner, true)
+    // Dagtotaal (Jordi's porties) en snacks aanvullen richting doel.
+    let total = emptyMacros()
+    if (breakfast) total = addMacros(total, breakfast.macros)
+    if (lunch) total = addMacros(total, lunch.macros)
+    if (dinner) total = addMacros(total, dinner.macros) // = Jordi-variant
 
-    let total = addMacros(addMacros(breakfast.macros, lunch.macros), dinnerMacros(dinner))
-
-    // Vul aan met snacks tot ~dagdoel (max 4 items, hoogstens 1 shake).
     let count = 0
     let shakeCount = 0
     while (count < 4) {
       const kcalGap = targets.kcal - total.kcal
       const proteinGap = targets.protein - total.protein
       if (kcalGap < 220 && proteinGap < 15) break
-
       const pool = shakeCount >= 1 ? snackSet.filter((s) => s.category !== 'shake') : snackSet
       const candidate = pickSnack(pool, kcalGap, proteinGap)
       if (!candidate) break
-
       entries.push({
         id: uid(), date, slot: 'snack', recipeId: candidate.id,
-        personVariant: null, servings: 1, done: false,
+        personVariant: null, servings: 1, partnerServings: 0, partnerVariant: null, done: false,
       })
       total = addMacros(total, candidate.macros)
       if (candidate.category === 'shake') shakeCount++
@@ -92,8 +167,24 @@ export function generateWeekPlan(
   return entries
 }
 
-// Verdeelt `nDays` dagen over `nParts` gerechten in aaneengesloten blokken,
-// grootste blok eerst. Bijv. 5 dagen / 2 gerechten -> [0,0,0,1,1].
+// Verdeelt `total` over buckets naar rato van hun gewicht (grootste-rest).
+function distributeCounts(total: number, weights: number[]): number[] {
+  const sum = weights.reduce((a, b) => a + b, 0) || 1
+  const raw = weights.map((w) => (w / sum) * total)
+  const base = raw.map((r) => Math.floor(r))
+  let rem = total - base.reduce((a, b) => a + b, 0)
+  const order = raw
+    .map((r, i) => ({ i, frac: r - Math.floor(r) }))
+    .sort((a, b) => b.frac - a.frac)
+  for (const o of order) {
+    if (rem <= 0) break
+    base[o.i]++
+    rem--
+  }
+  return base
+}
+
+// Verdeelt `nDays` dagen over `nParts` gerechten in aaneengesloten blokken.
 function blockIndexForDays(nDays: number, nParts: number): number[] {
   if (nParts <= 1) return Array(nDays).fill(0)
   const base = Math.floor(nDays / nParts)
@@ -106,23 +197,16 @@ function blockIndexForDays(nDays: number, nParts: number): number[] {
   return res
 }
 
-// Kiest de snack/shake die het beste past bij het resterende gat.
-// Prioriteit op eiwit als daar het grootste tekort zit, anders op kcal-fit.
 function pickSnack(snacks: Recipe[], kcalGap: number, proteinGap: number): Recipe | undefined {
   if (snacks.length === 0) return undefined
   const usable = snacks.filter((s) => s.macros.kcal <= kcalGap + 200)
   const pool = usable.length ? usable : snacks
-
-  if (proteinGap > 20) {
-    return [...pool].sort((a, b) => b.macros.protein - a.macros.protein)[0]
-  }
-  // Kies degene wiens kcal het dichtst bij het gat ligt.
+  if (proteinGap > 20) return [...pool].sort((a, b) => b.macros.protein - a.macros.protein)[0]
   return [...pool].sort(
     (a, b) => Math.abs(a.macros.kcal - kcalGap) - Math.abs(b.macros.kcal - kcalGap),
   )[0]
 }
 
-// Dagtotaal ter info (per portie / 1 persoon).
 export function planDayMacros(entries: PlanEntry[], recipeMap: Map<string, Recipe>): Macros {
   return entries.reduce((acc, e) => {
     const r = recipeMap.get(e.recipeId)
