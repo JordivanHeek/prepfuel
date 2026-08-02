@@ -15,7 +15,8 @@ export function generateWeekPlan(
   const breakfasts = byCat('ontbijt')
   const lunches = byCat('lunch-koud')
   const dinners = byCat('avond')
-  const snacks = [...byCat('snack'), ...byCat('shake')]
+  // Aanvul-pool: snacks + shakes, maar nooit de mass gainer (te veel kcal in één keer).
+  const snacks = [...byCat('snack'), ...byCat('shake')].filter((r) => r.id !== 'mass-gainer-shake')
 
   if (breakfasts.length === 0 || lunches.length === 0 || dinners.length === 0) return []
 
@@ -67,14 +68,17 @@ export function generateWeekPlan(
       dinnerMacros(dinner),
     )
 
-    // Vul aan met snacks/shakes tot ~dagdoel (max 3).
+    // Vul aan met snacks tot ~dagdoel (max 4 items, hoogstens 1 shake).
     let count = 0
-    while (count < 3) {
+    let shakeCount = 0
+    while (count < 4) {
       const kcalGap = targets.kcal - total.kcal
       const proteinGap = targets.protein - total.protein
       if (kcalGap < 220 && proteinGap < 15) break // dichtbij genoeg
 
-      const candidate = pickSnack(snacks, kcalGap, proteinGap)
+      // Als er al een shake staat: alleen nog echte snacks toestaan.
+      const pool = shakeCount >= 1 ? snacks.filter((s) => s.category !== 'shake') : snacks
+      const candidate = pickSnack(pool, kcalGap, proteinGap)
       if (!candidate) break
 
       entries.push({
@@ -82,6 +86,7 @@ export function generateWeekPlan(
         personVariant: null, servings: 1, done: false,
       })
       total = addMacros(total, candidate.macros)
+      if (candidate.category === 'shake') shakeCount++
       count++
     }
   }
